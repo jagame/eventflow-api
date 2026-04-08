@@ -6,6 +6,7 @@ import com.jagame.eventflow.driver.BrokerProducer;
 import com.jagame.eventflow.signal.Signal;
 import io.cloudevents.CloudEvent;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 public class SignalAdaptedProducer<T extends Signal> implements MessageProducer<T> {
@@ -24,8 +25,8 @@ public class SignalAdaptedProducer<T extends Signal> implements MessageProducer<
     }
 
     @Override
-    public void send(String topic, T event) throws BrokerConnectionException {
-        realProducer.send(topic, toCloudEventMapper.apply(event));
+    public CompletableFuture<Void> send(String topic, T event) throws BrokerConnectionException {
+        return realProducer.send(topic, toCloudEventMapper.apply(event));
     }
 
     @Override

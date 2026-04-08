@@ -3,7 +3,6 @@ package com.jagame.eventflow.signal.flow;
 import com.jagame.eventflow.MessagingException;
 import com.jagame.eventflow.driver.BrokerConnectionException;
 import com.jagame.eventflow.signal.consumer.SignalInterceptionException;
-import com.jagame.eventflow.signal.consumer.SignalInterceptor;
 import com.jagame.eventflow.signal.producer.SignalAdaptedProducer;
 
 import java.util.concurrent.*;
@@ -45,10 +44,10 @@ public class SignalFlowExecutor<T extends StartFlowSignal, R extends EndFlowSign
 
     public CompletableFuture<R> runAsync(T startSignal) {
         return CompletableFuture.supplyAsync(() -> {
-            try (SignalInterceptor<R> signalInterceptor = newSignalInterceptor()) {
+            try (FlowSignalInterceptor<R> signalInterceptor = newSignalInterceptor()) {
                 CompletableFuture<R> endSignalRequest = signalInterceptor.next(startSignal.flowId());
-                producer.send(context.productionTopic(), startSignal);
 
+                producer.send(context.productionTopic(), startSignal).get();
                 return endSignalRequest.get();
             } catch (MessagingException e) {
                 throw new SignalFlowRuntimeException(e);
@@ -65,8 +64,8 @@ public class SignalFlowExecutor<T extends StartFlowSignal, R extends EndFlowSign
         });
     }
 
-    private SignalInterceptor<R> newSignalInterceptor() throws MessagingException {
-        return new SignalInterceptor<>(context.consumptionTopic(), context.newAdaptedConsumer());
+    private FlowSignalInterceptor<R> newSignalInterceptor() throws MessagingException {
+        return new FlowSignalInterceptor<>(context.consumptionTopic(), context.newAdaptedConsumer());
     }
 
     @Override

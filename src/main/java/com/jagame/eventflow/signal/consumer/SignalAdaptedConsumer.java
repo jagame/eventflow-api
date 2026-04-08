@@ -6,6 +6,7 @@ import com.jagame.eventflow.driver.BrokerConsumer;
 import com.jagame.eventflow.signal.Signal;
 import io.cloudevents.CloudEvent;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 public class SignalAdaptedConsumer<R extends Signal> implements MessageConsumer<R> {
@@ -24,8 +25,9 @@ public class SignalAdaptedConsumer<R extends Signal> implements MessageConsumer<
     }
 
     @Override
-    public R next(String topic) throws BrokerConnectionException {
-        return toSignalMapper.apply(realConsumer.next(topic));
+    public CompletableFuture<R> next(String topic) throws BrokerConnectionException {
+        return realConsumer.next(topic)
+                .thenApply(toSignalMapper);
     }
 
     @Override
