@@ -1,47 +1,41 @@
 package com.jagame.eventflow.signal.consumer;
 
-import com.jagame.eventflow.MessageConsumer;
-import com.jagame.eventflow.driver.BrokerConnectionException;
-import com.jagame.eventflow.driver.BrokerConsumer;
+import com.jagame.eventflow.VesselConsumer;
 import com.jagame.eventflow.signal.Signal;
 import io.cloudevents.CloudEvent;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
-public class SignalAdaptedConsumer<R extends Signal> implements MessageConsumer<R> {
+public class SignalAdaptedConsumer<R extends Signal> implements VesselConsumer<R> {
 
-    private final BrokerConsumer realConsumer;
+    private final VesselConsumer<CloudEvent> realConsumer;
     private final Function<CloudEvent, R> toSignalMapper;
 
-    public SignalAdaptedConsumer(BrokerConsumer realConsumer, Function<CloudEvent, R> toSignalMapper) {
+    public SignalAdaptedConsumer(VesselConsumer<CloudEvent> realConsumer, Function<CloudEvent, R> toSignalMapper) {
         this.realConsumer = realConsumer;
         this.toSignalMapper = toSignalMapper;
     }
 
     @Override
-    public void beginTransaction() throws BrokerConnectionException {
-        realConsumer.beginTransaction();
+    public String vessel() {
+        return realConsumer.vessel();
     }
 
     @Override
-    public CompletableFuture<R> next(String topic) throws BrokerConnectionException {
-        return realConsumer.next(topic)
-                .thenApply(toSignalMapper);
+    public CompletableFuture<R> next() {
+        return realConsumer.next().thenApply(toSignalMapper);
     }
 
     @Override
-    public void commit() throws BrokerConnectionException {
-        realConsumer.commit();
-    }
-
-    @Override
-    public void rollback() {
-        realConsumer.rollback();
-    }
-
-    @Override
-    public void close() {
-        realConsumer.close();
+    public CompletableFuture<List<R>> next(int numMessages) {
+        return realConsumer.next(numMessages).thenApply(cloudEvents ->
+                cloudEvents
+                        .stream()
+                        .map(toSignalMapper)
+                        .collect(Collectors.toList())
+        );
     }
 }

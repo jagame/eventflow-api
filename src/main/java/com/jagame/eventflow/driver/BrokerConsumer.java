@@ -1,20 +1,7 @@
 package com.jagame.eventflow.driver;
 
-import com.jagame.eventflow.MessageConsumer;
+import com.jagame.eventflow.VesselConsumer;
 import io.cloudevents.CloudEvent;
 
-import java.util.concurrent.CompletableFuture;
-
-public interface BrokerConsumer extends MessageConsumer<CloudEvent> {
-
-    void beginTransaction() throws BrokerConnectionException;
-
-    CompletableFuture<CloudEvent> next(String topic) throws BrokerConnectionException;
-
-    void commit() throws BrokerConnectionException;
-
-    void rollback();
-
-    @Override
-    void close();
+public interface BrokerConsumer extends VesselConsumer<CloudEvent> {
 }

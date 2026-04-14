@@ -1,15 +1,16 @@
 package com.jagame.eventflow.signal.producer;
 
-import com.jagame.eventflow.MessageProducer;
-import com.jagame.eventflow.driver.BrokerConnectionException;
+import com.jagame.eventflow.VesselProducer;
 import com.jagame.eventflow.driver.BrokerProducer;
 import com.jagame.eventflow.signal.Signal;
 import io.cloudevents.CloudEvent;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
-public class SignalAdaptedProducer<T extends Signal> implements MessageProducer<T> {
+public class SignalAdaptedProducer<T extends Signal> implements VesselProducer<T> {
 
     private final BrokerProducer realProducer;
     private final Function<T, CloudEvent> toCloudEventMapper;
@@ -20,27 +21,22 @@ public class SignalAdaptedProducer<T extends Signal> implements MessageProducer<
     }
 
     @Override
-    public void beginTransaction() throws BrokerConnectionException {
-        realProducer.beginTransaction();
+    public String vessel() {
+        return "";
     }
 
     @Override
-    public CompletableFuture<Void> send(String topic, T event) throws BrokerConnectionException {
-        return realProducer.send(topic, toCloudEventMapper.apply(event));
+    public CompletableFuture<Void> send(T events) {
+        return realProducer.send(toCloudEventMapper.apply(events));
     }
 
     @Override
-    public void commit() throws BrokerConnectionException {
-        realProducer.commit();
+    public CompletableFuture<Void> send(List<T> events) {
+        return realProducer.send(events
+                .stream()
+                .map(toCloudEventMapper)
+                .collect(Collectors.toList())
+        );
     }
 
-    @Override
-    public void rollback() {
-        realProducer.rollback();
-    }
-
-    @Override
-    public void close() {
-        realProducer.close();
-    }
 }

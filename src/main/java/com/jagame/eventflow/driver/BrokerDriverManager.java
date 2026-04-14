@@ -1,5 +1,7 @@
 package com.jagame.eventflow.driver;
 
+import com.jagame.eventflow.MessagingException;
+
 import java.util.List;
 import java.util.Properties;
 import java.util.ServiceLoader;
@@ -17,12 +19,20 @@ public class BrokerDriverManager {
 
     private BrokerDriverManager() {}
 
-    public static BrokerProducer producer(Properties properties) throws BrokerConnectionException {
-        return compliantDriver(properties).producer(properties);
+    public static BrokerClient createClient(Properties properties) throws BrokerConnectionException {
+        return compliantDriver(properties).createClient(properties);
     }
 
-    public static BrokerConsumer consumer(Properties properties) throws BrokerConnectionException {
-        return compliantDriver(properties).consumer(properties);
+    public static BrokerSession newSingleSession(Properties properties) throws BrokerConnectionException {
+        return createClient(properties).newSingleSession();
+    }
+
+    public static BrokerSession newGroupSession(Properties properties) throws BrokerConnectionException {
+        return createClient(properties).newGroupSession();
+    }
+
+    public static BrokerSession newGroupSession(Properties properties, String groupId) throws BrokerConnectionException {
+        return createClient(properties).newGroupSession(groupId);
     }
 
     public static BrokerDriver compliantDriver(Properties properties) {

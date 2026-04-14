@@ -1,6 +1,8 @@
 package com.jagame.eventflow;
 
-public class MessagingException extends Exception {
+import java.io.IOException;
+
+public class MessagingException extends IOException {
     public MessagingException(String message) {
         super(message);
     }

@@ -1,75 +1,89 @@
 package com.jagame.eventflow.signal.flow;
 
+import com.jagame.common.LightRuntimeException;
 import com.jagame.eventflow.MessagingException;
 import com.jagame.eventflow.driver.BrokerConnectionException;
-import com.jagame.eventflow.signal.consumer.SignalInterceptionException;
+import com.jagame.eventflow.signal.consumer.SignalAdaptedConsumer;
+import com.jagame.eventflow.signal.driver.SignalAdaptedClient;
+import com.jagame.eventflow.signal.driver.SignalAdaptedSession;
 import com.jagame.eventflow.signal.producer.SignalAdaptedProducer;
 
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class SignalFlowExecutor<T extends StartFlowSignal, R extends EndFlowSignal> implements AutoCloseable {
 
-    private final SignalFlowConfiguration<T, R> context;
-    private final SignalAdaptedProducer<T> producer;
+    private final SignalFlowConfiguration<T, R> configuration;
+    private final SignalAdaptedClient<T, R> client;
 
     SignalFlowExecutor(
-            SignalFlowConfiguration<T, R> context,
-            SignalAdaptedProducer<T> startSignalProducer
+            SignalFlowConfiguration<T, R> configuration,
+            SignalAdaptedClient<T, R> client
     ) {
-        this.context = context;
-        this.producer = startSignalProducer;
+        this.configuration = configuration;
+        this.client = client;
     }
 
-    public static <T extends StartFlowSignal, R extends EndFlowSignal> SignalFlowExecutor<T, R> withConfiguration(
-            SignalFlowConfiguration<T, R> context
+    public static <T extends StartFlowSignal, R extends EndFlowSignal> SignalFlowExecutor<T, R> withFlowConfiguration(
+            SignalFlowConfiguration<T, R> configuration
     ) throws BrokerConnectionException {
-        SignalAdaptedProducer<T> producer = context.newAdaptedProducer();
-        return new SignalFlowExecutor<>(context, producer);
+        SignalAdaptedClient<T, R> adaptedClient = configuration.newAdaptedClient();
+        return new SignalFlowExecutor<>(configuration, adaptedClient);
     }
 
     public R run(T startSignal) throws SignalFlowException, TimeoutException {
         try {
-            return runAsync(startSignal).get(5, TimeUnit.MINUTES);
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof SignalFlowRuntimeException) {
-                cause = cause.getCause();
-            }
-            throw new SignalFlowException(cause);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            return lightRun(startSignal);
+        } catch (LightRuntimeException e) {
             throw new SignalFlowException(e.getCause());
         }
     }
 
     public CompletableFuture<R> runAsync(T startSignal) {
         return CompletableFuture.supplyAsync(() -> {
-            try (FlowSignalInterceptor<R> signalInterceptor = newSignalInterceptor()) {
-                CompletableFuture<R> endSignalRequest = signalInterceptor.next(startSignal.flowId());
-
-                producer.send(context.productionTopic(), startSignal).get();
-                return endSignalRequest.get();
-            } catch (MessagingException e) {
-                throw new SignalFlowRuntimeException(e);
-            } catch (ExecutionException e) {
-                Throwable cause = e.getCause();
-                if (cause instanceof SignalInterceptionException) {
-                    cause = cause.getCause();
-                }
-                throw new SignalFlowRuntimeException(cause);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+            try {
+                return lightRun(startSignal);
+            } catch (LightRuntimeException e) {
+                throw new SignalFlowRuntimeException(e.getCause());
+            } catch (TimeoutException e) {
                 throw new SignalFlowRuntimeException(e);
             }
         });
     }
 
-    private FlowSignalInterceptor<R> newSignalInterceptor() throws MessagingException {
-        return new FlowSignalInterceptor<>(context.consumptionTopic(), context.newAdaptedConsumer());
+    protected R lightRun(T startSignal) throws TimeoutException {
+        try (SignalAdaptedSession<T, R> session = client.newSingleSession()) {
+            SignalAdaptedConsumer<R> consumer = session.consume(configuration.consumptionTopic());
+            FlowSignalInterceptor<R> signalInterceptor = new FlowSignalInterceptor<>(consumer);
+            SignalAdaptedProducer<T> producer = session.produce(configuration.productionTopic());
+
+            CompletableFuture<R> endSignalRequest = signalInterceptor.lightNext(startSignal.flowId());
+            producer.send(startSignal)
+                    .whenComplete((unused, ex) -> {
+                        if(ex != null) {
+                            endSignalRequest.completeExceptionally(ex);
+                        }
+                    });
+
+            return endSignalRequest.get(5, TimeUnit.MINUTES);
+        } catch (MessagingException e) {
+            throw new LightRuntimeException(e);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof LightRuntimeException) {
+                throw (LightRuntimeException) cause;
+            }
+            throw new LightRuntimeException(cause);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new LightRuntimeException(e);
+        }
     }
 
     @Override
     public void close() {
-        producer.close();
+        client.close();
     }
 }

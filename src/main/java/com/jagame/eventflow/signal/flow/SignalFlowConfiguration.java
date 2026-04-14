@@ -3,9 +3,7 @@ package com.jagame.eventflow.signal.flow;
 import com.jagame.eventflow.driver.BrokerConnectionException;
 import com.jagame.eventflow.driver.BrokerDriverManager;
 import com.jagame.eventflow.signal.Signal;
-import com.jagame.eventflow.signal.driver.SignalAdaptedDriver;
-import com.jagame.eventflow.signal.consumer.SignalAdaptedConsumer;
-import com.jagame.eventflow.signal.producer.SignalAdaptedProducer;
+import com.jagame.eventflow.signal.driver.SignalAdaptedClient;
 import io.cloudevents.CloudEvent;
 
 import java.util.Properties;
@@ -14,9 +12,10 @@ import java.util.function.Function;
 public class SignalFlowConfiguration<T extends Signal, R extends Signal> {
 
     private final String productionTopic;
+    private final Function<T, CloudEvent> producedSignalMapper;
     private final String consumptionTopic;
-    private final SignalAdaptedDriver<T, R> adaptedDriver;
     private final Properties connectionProperties;
+    private final Function<CloudEvent, R> consumedSignalMapper;
 
     private SignalFlowConfiguration(
             String productionTopic,
@@ -26,12 +25,9 @@ public class SignalFlowConfiguration<T extends Signal, R extends Signal> {
             Properties connectionProperties
     ) {
         this.productionTopic = productionTopic;
+        this.producedSignalMapper = producedSignalMapper;
         this.consumptionTopic = consumptionTopic;
-        this.adaptedDriver = new SignalAdaptedDriver<>(
-                BrokerDriverManager.compliantDriver(connectionProperties),
-                producedSignalMapper,
-                consumedSignalMapper
-        );
+        this.consumedSignalMapper = consumedSignalMapper;
         this.connectionProperties = connectionProperties;
     }
 
@@ -43,12 +39,12 @@ public class SignalFlowConfiguration<T extends Signal, R extends Signal> {
         return productionTopic;
     }
 
-    public SignalAdaptedProducer<T> newAdaptedProducer() throws BrokerConnectionException {
-        return adaptedDriver.producer(connectionProperties);
-    }
-
-    public SignalAdaptedConsumer<R> newAdaptedConsumer() throws BrokerConnectionException {
-        return adaptedDriver.consumer(connectionProperties);
+    public SignalAdaptedClient<T, R> newAdaptedClient() throws BrokerConnectionException {
+        return new SignalAdaptedClient<>(
+                BrokerDriverManager.createClient(connectionProperties),
+                producedSignalMapper,
+                consumedSignalMapper
+        );
     }
 
     public static <T extends Signal, R extends Signal> Builder<T, R> builder() {

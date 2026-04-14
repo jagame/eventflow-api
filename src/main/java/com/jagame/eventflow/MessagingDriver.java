@@ -4,8 +4,18 @@ import java.util.Properties;
 
 public interface MessagingDriver<T, R> {
 
-    MessageProducer<T> producer(Properties properties) throws MessagingException;
+    MessagingClient<T, R> createClient(Properties properties) throws MessagingException;
 
-    MessageConsumer<R> consumer(Properties properties) throws MessagingException;
+    default MessagingSession<T, R> newSingleSession(Properties properties) throws MessagingException {
+        return createClient(properties).newSingleSession();
+    }
+
+    default MessagingSession<T, R> newGroupSession(Properties properties) throws MessagingException {
+        return createClient(properties).newGroupSession();
+    }
+
+    default MessagingSession<T, R> newGroupSession(Properties properties, String groupId) throws MessagingException {
+        return createClient(properties).newGroupSession(groupId);
+    }
 
 }

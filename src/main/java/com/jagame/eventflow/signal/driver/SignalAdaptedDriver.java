@@ -1,11 +1,9 @@
 package com.jagame.eventflow.signal.driver;
 
 import com.jagame.eventflow.MessagingDriver;
-import com.jagame.eventflow.driver.BrokerConnectionException;
+import com.jagame.eventflow.MessagingException;
 import com.jagame.eventflow.driver.BrokerDriver;
 import com.jagame.eventflow.signal.Signal;
-import com.jagame.eventflow.signal.consumer.SignalAdaptedConsumer;
-import com.jagame.eventflow.signal.producer.SignalAdaptedProducer;
 import io.cloudevents.CloudEvent;
 
 import java.util.Properties;
@@ -28,13 +26,11 @@ public class SignalAdaptedDriver<T extends Signal, R extends Signal> implements 
     }
 
     @Override
-    public SignalAdaptedProducer<T> producer(Properties properties) throws BrokerConnectionException {
-        return new SignalAdaptedProducer<>(realDriver.producer(properties), toCloudEventMapper);
+    public SignalAdaptedClient<T, R> createClient(Properties properties) throws MessagingException {
+        return new SignalAdaptedClient<>(
+                realDriver.createClient(properties),
+                toCloudEventMapper,
+                toSignalMapper
+        );
     }
-
-    @Override
-    public SignalAdaptedConsumer<R> consumer(Properties properties) throws BrokerConnectionException {
-        return new SignalAdaptedConsumer<>(realDriver.consumer(properties), toSignalMapper);
-    }
-
 }
